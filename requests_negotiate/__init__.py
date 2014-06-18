@@ -6,13 +6,14 @@ from requests.auth import AuthBase
 from requests.compat import urlparse
 
 class HTTPNegotiateAuth(AuthBase):
-    def __init__(self, service='HTTP'):
+    def __init__(self, service='HTTP', preempt=False):
         self.service = service
         self.contexts = {}
+        self.preempt = preempt
 
     def __call__(self, request):
         host = urlparse(request.url).hostname
-        if host in self.contexts:
+        if self.preempt or host in self.contexts:
             self.contexts[host] = ctx = self.get_context(host)
             token = ctx.step(None)
             request.headers['Authorization'] = 'Negotiate ' + base64.b64encode(token).decode('utf-8')
