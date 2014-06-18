@@ -14,5 +14,5 @@ Here's a trivial example:
     auth = requests_negotiate.HTTPNegotiateAuth()
     response = requests.get('https://example.org/', auth=auth)
 
-You'll need a valid Kerberos token — acquired using e.g. `kinit` — for this to work.
+You'll need a valid Kerberos ticket — acquired using e.g. `kinit` — for this to work.
 
