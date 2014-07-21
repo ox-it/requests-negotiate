@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='requests-negotiate',
-    version='1.0',
+    version='1.1',
     license='BSD',
     packages=['requests_negotiate'],
     classifiers=['License :: OSI Approved :: BSD License',
