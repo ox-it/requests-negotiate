@@ -20,6 +20,11 @@ class HTTPNegotiateAuth(AuthBase):
         request.register_hook('response', self.handle_401)
         return request
 
+    @property
+    def username(self):
+        credential = gssapi.Credential()
+        return str(credential.name)
+
     def get_context(self, host):
         service_name = gssapi.Name('{0}@{1}'.format(self.service,
                                                     host),
