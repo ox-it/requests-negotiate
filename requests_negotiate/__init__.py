@@ -47,7 +47,7 @@ class HTTPNegotiateAuth(AuthBase):
              '''(\s*=\s*(?P<param>(".*([^\\\\]|)")|{tchar}*))?'''
              '''\s*,?\s*'''
             ).format(tchar=tchar)
-    print regex
+    logger.debug("authenticate header regex: " + regex)
     authenticate_re = re.compile(regex, re.I)
 
     def parse_authenticate_header(self, value):
