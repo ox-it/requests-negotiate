@@ -42,27 +42,37 @@ class HTTPNegotiateAuth(AuthBase):
         logging.debug("get_context(): service name={0}".format(service_name))
         return gssapi.InitContext(service_name)
 
-    authenticate_re = re.compile("""([a-z_\d]+)(=("([^\\"]*(\\.)?)*")|[a-z_\d]*)?(\s+,)?(\s+|$)""", re.I)
+    tchar = r'[^"\\\(\),/:;<=>?@\[\]\{\}\s]'
+    regex = ('''(?P<token>{tchar}+)'''
+             '''(\s*=\s*(?P<param>(".*([^\\\\]|)")|{tchar}*))?'''
+             '''\s*,?\s*'''
+            ).format(tchar=tchar)
+    print regex
+    authenticate_re = re.compile(regex, re.I)
 
     def parse_authenticate_header(self, value):
         logger.debug("parse_authenticate_header: values={0}".format(value))
         methods, method, name = {}, None, None
-        while value:
-            match = self.authenticate_re.match(value)
-            logger.debug("Match={0}".format(match))
+        for match in self.authenticate_re.finditer(value):
+            logger.debug("Match={0}".format(match.group(0)))
             if not match:
+                logger.debug("Error matching header")
                 return {}
-            if not match.group(6) and match.group(7) is not None:
-                name = match.group(1).title()
+            if match.group("param") is None:
+                logger.debug("token: " + match.group("token"))
+                name = match.group("token").title()
                 methods[name] = method = {}
             else:
-                if match.group(2):  # foo=bar
-                    value = match.group(4)
+                value = match.group("param")
+                logger.debug(
+                    "param: {0} = {1}".format(match.group("token"), value)
+                )
+                if value != "":
                     if value.startswith('"'):
                         value = value[1:-1]
-                    method[match.group(1)] = value.replace(r'\"', '"')
+                    method[match.group("token")] = value.replace(r'\"', '"')
                 else:  # it's not really a paramter
-                    methods[name] = match.group(1)
+                    methods[name] = match.group("token")
             value = value[match.end():]
         return methods
 
