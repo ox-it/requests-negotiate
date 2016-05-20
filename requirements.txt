@@ -1,3 +1,4 @@
-python-gssapi
+gssapi
 requests
+www-authenticate
 

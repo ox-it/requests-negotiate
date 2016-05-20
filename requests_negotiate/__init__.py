@@ -5,16 +5,20 @@ import logging
 import gssapi
 from requests.auth import AuthBase
 from requests.compat import urlparse
+import www_authenticate
 
 
 logger = logging.getLogger(__name__)
 
 
 class HTTPNegotiateAuth(AuthBase):
-    def __init__(self, service='HTTP', preempt=False):
+    def __init__(self, service='HTTP', service_name=None,
+                 negotiate_client_name=None, preempt=False):
         self.service = service
+        self.service_name = service_name
         self.contexts = {}
         self.preempt = preempt
+        self.negotiate_client_name = negotiate_client_name
 
     def __call__(self, request):
         host = urlparse(request.url).hostname
@@ -36,54 +40,31 @@ class HTTPNegotiateAuth(AuthBase):
         return str(credential.name)
 
     def get_context(self, host):
-        service_name = gssapi.Name('{0}@{1}'.format(self.service,
-                                                    host),
-                                   gssapi.C_NT_HOSTBASED_SERVICE)
+        service_name = gssapi.Name(self.service_name or '{0}@{1}'.format(self.service, host),
+                                   gssapi.NameType.hostbased_service)
         logging.debug("get_context(): service name={0}".format(service_name))
-        return gssapi.InitContext(service_name)
+        if self.negotiate_client_name:
+            creds = gssapi.Credentials(name=gssapi.Name(self.negotiate_client_name),
+                                       usage='initiate')
+        else:
+            creds = None
+        return gssapi.SecurityContext(name=service_name,
+                                      creds=creds,
+                                      usage='initiate')
 
-    tchar = r'[^"\\\(\),/:;<=>?@\[\]\{\}\s]'
-    regex = ('''(?P<token>{tchar}+)'''
-             '''(\s*=\s*(?P<param>(".*([^\\\\]|)")|{tchar}*))?'''
-             '''\s*,?\s*'''
-            ).format(tchar=tchar)
-    logger.debug("authenticate header regex: " + regex)
-    authenticate_re = re.compile(regex, re.I)
-
-    def parse_authenticate_header(self, value):
-        logger.debug("parse_authenticate_header: values={0}".format(value))
-        methods, method, name = {}, None, None
-        for match in self.authenticate_re.finditer(value):
-            logger.debug("Match={0}".format(match.group(0)))
-            if not match:
-                logger.debug("Error matching header")
-                return {}
-            if match.group("param") is None:
-                logger.debug("token: " + match.group("token"))
-                name = match.group("token").title()
-                methods[name] = method = {}
-            else:
-                value = match.group("param")
-                logger.debug(
-                    "param: {0} = {1}".format(match.group("token"), value)
-                )
-                if value != "":
-                    if value.startswith('"'):
-                        value = value[1:-1]
-                    method[match.group("token")] = value.replace(r'\"', '"')
-                else:  # it's not really a paramter
-                    methods[name] = match.group("token")
-            value = value[match.end():]
-        return methods
+    def get_challenges(self, response):
+        challenges = {}
+        for k, v in response.headers.items():
+             if k.lower() == 'www-authenticate':
+                 challenges.update(www_authenticate.parse(v))
+        return challenges
 
     def handle_401(self, response, **kwargs):
         logger.debug("Starting to handle 401 error")
         logger.debug(response.headers)
-        auth_methods = self.parse_authenticate_header(
-            response.headers.get('WWW-Authenticate', '')
-        )
-        logger.debug("auth_methods={0}".format(auth_methods))
-        if 'Negotiate' not in auth_methods:
+        challenges = self.get_challenges(response)
+        logger.debug("auth_methods={0}".format(challenges))
+        if 'negotiate' not in challenges:
             logger.debug("Giving up on negotiate auth")
             return response
 
@@ -95,20 +76,22 @@ class HTTPNegotiateAuth(AuthBase):
             ctx = self.contexts[host] = self.get_context(host)
 
         logger.debug("ctx={0}".format(ctx))
-        while not ctx.established:
+        while not ctx.complete:
             response.content
             response.raw.release_conn()
-            prep = response.request.copy()
-            in_token = auth_methods['Negotiate'] or None
+            new_request = response.request.copy()
+            in_token = challenges['negotiate'] or None
             if in_token:
                 logger.debug("Server token: {0}".format(in_token))
-                in_token = base64.b64decode(in_token).decode('utf-8')
+                in_token = base64.b64decode(in_token)
             out_token = ctx.step(in_token)
-            out_token_b64 = base64.b64encode(out_token).decode('utf-8')
-            prep.headers['Authorization'] = 'Negotiate ' + out_token_b64
+            out_token_b64 = base64.b64encode(out_token)
+            new_request.headers['Authorization'] = 'Negotiate ' + out_token_b64
             logger.debug("Sending response token: {0}".format(out_token_b64))
-            _r = response.connection.send(prep, **kwargs)
-            _r.history.append(response)
-            _r.request = prep
+            new_response = response.connection.send(new_request, **kwargs)
+            new_response.history.append(response)
+            new_response.request = new_request
+            response = new_response
+            challenges = self.get_challenges(response)
 
-        return _r
+        return response
