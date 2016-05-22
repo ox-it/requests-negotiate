@@ -76,22 +76,20 @@ class HTTPNegotiateAuth(AuthBase):
             ctx = self.contexts[host] = self.get_context(host)
 
         logger.debug("ctx={0}".format(ctx))
-        while not ctx.complete:
+        out_token = base64.b64encode(ctx.step(None))
+        while response.status_code == 401 and not ctx.complete:
             response.content
             response.raw.release_conn()
             new_request = response.request.copy()
-            in_token = challenges['negotiate'] or None
-            if in_token:
-                logger.debug("Server token: {0}".format(in_token))
-                in_token = base64.b64decode(in_token)
-            out_token = ctx.step(in_token)
-            out_token_b64 = base64.b64encode(out_token)
-            new_request.headers['Authorization'] = 'Negotiate ' + out_token_b64
-            logger.debug("Sending response token: {0}".format(out_token_b64))
+            new_request.headers['Authorization'] = 'Negotiate ' + out_token
             new_response = response.connection.send(new_request, **kwargs)
             new_response.history.append(response)
             new_response.request = new_request
             response = new_response
             challenges = self.get_challenges(response)
+            in_token = base64.b64decode(challenges['negotiate'])
+            out_token = ctx.step(in_token)
+            if out_token:
+                out_token = base64.b64encode(out_token)
 
         return response
