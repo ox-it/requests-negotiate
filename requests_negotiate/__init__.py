@@ -49,8 +49,7 @@ class HTTPNegotiateAuth(AuthBase):
         else:
             creds = None
         return gssapi.SecurityContext(name=service_name,
-                                      creds=creds,
-                                      usage='initiate')
+                                      creds=creds)
 
     def get_challenges(self, response):
         challenges = {}
@@ -76,7 +75,10 @@ class HTTPNegotiateAuth(AuthBase):
             ctx = self.contexts[host] = self.get_context(host)
 
         logger.debug("ctx={0}".format(ctx))
-        out_token = base64.b64encode(ctx.step(None))
+        in_token = base64.b64decode(challenges['negotiate']) \
+            if challenges['negotiate'] else None
+
+        out_token = base64.b64encode(ctx.step(in_token))
         while response.status_code == 401 and not ctx.complete:
             response.content
             response.raw.release_conn()

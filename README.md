@@ -16,3 +16,12 @@ Here's a trivial example:
 
 You'll need a valid Kerberos ticket — acquired using e.g. `kinit` — for this to work.
 
+### Options
+
+You can instantiate an ``HTTPNegotiateAuth`` with the following optional parameters:
+
+* ``service`` — A Kerberos principal is generally composed of a service name (e.g. 'HTTP') and a hostname, separated by a slash ('/'). This lets you override the default service of ``'HTTP'``.
+* ``service_name`` — Overrides the full service name (e.g. ``'HTTP/example.org'``)
+* ``negotiate_client_name`` — Explicitly specify which client principal to authenticate as. Particularly useful when you're using a credential cache collection.
+* ``preempt`` — Attempt Negotiate authentication before it is offered.
+
