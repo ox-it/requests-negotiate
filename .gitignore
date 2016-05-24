@@ -1,0 +1,6 @@
+/.idea
+/build
+/dist
+*.pyc
+__pycache__
+/MANIFEST
