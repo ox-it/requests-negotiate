@@ -90,7 +90,10 @@ class HTTPNegotiateAuth(AuthBase):
             new_response.request = new_request
             response = new_response
             challenges = self.get_challenges(response)
-            in_token = base64.b64decode(challenges['negotiate'].encode())
-            out_token = ctx.step(in_token)
+            if 'negotiate' in challenges:
+                in_token = base64.b64decode(challenges['negotiate'].encode())
+                out_token = ctx.step(in_token)
+            else:
+                break
 
         return response
