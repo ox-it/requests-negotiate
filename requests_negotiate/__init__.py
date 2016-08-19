@@ -22,7 +22,6 @@ class HTTPNegotiateAuth(AuthBase):
                  negotiate_client_name=None):
         self.service = service
         self.service_name = service_name
-        self.contexts = {}
         self.negotiate_client_name = negotiate_client_name
 
     def __call__(self, request):
@@ -75,10 +74,7 @@ class HTTPNegotiateAuth(AuthBase):
 
         host = self.get_hostname(response)
         logger.debug("host={0}".format(host))
-        if host in self.contexts:
-            ctx = self.contexts[host]
-        else:
-            ctx = self.contexts[host] = self.get_context(host)
+        ctx = self.get_context(host)
 
         logger.debug("ctx={0}".format(ctx))
         in_token = base64.b64decode(challenges['negotiate'].encode('ascii')) \
