@@ -25,7 +25,7 @@ class HTTPNegotiateAuth(AuthBase):
 
     def get_hostname(self, response):
         assert isinstance(response.raw._connection, HTTPConnection)
-        return socket.gethostbyaddr(response.raw._connection.sock.getpeername()[0])[0]
+        return socket.gethostbyaddr(response.raw._connection.sock.socket.getpeername()[0])[0]
 
     @property
     def username(self):
