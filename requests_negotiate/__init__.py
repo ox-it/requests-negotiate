@@ -1,5 +1,6 @@
 import base64
 import socket
+import ssl
 
 import logging
 
@@ -7,6 +8,11 @@ import gssapi
 from requests.auth import AuthBase
 import www_authenticate
 from requests.packages.urllib3.connection import HTTPConnection
+try:
+    from requests.packages.urllib3.contrib.pyopenssl import WrappedSocket
+except ImportError:
+    # A dummy class, for which nothing will be an instance of it.
+    WrappedSocket = type('WrappedSocket', (object,), {})
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +31,12 @@ class HTTPNegotiateAuth(AuthBase):
 
     def get_hostname(self, response):
         assert isinstance(response.raw._connection, HTTPConnection)
-        return socket.gethostbyaddr(response.raw._connection.sock.socket.getpeername()[0])[0]
+        sock = response.raw._connection.sock
+        # If pyopenssl is being used, we get a wrapped socket instead.
+        if isinstance(sock, WrappedSocket):
+            sock = sock.socket
+        assert isinstance(sock, (ssl.SSLSocket, socket.socket))
+        return socket.gethostbyaddr(sock.getpeername()[0])[0]
 
     @property
     def username(self):
