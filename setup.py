@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='requests-negotiate',
-    version='1.3.5',
+    version='1.4',
     description='Negotiate authentication for the requests HTTP client library',
     author='IT Services, University of Oxford',
     author_email='github@it.ox.ac.uk',
