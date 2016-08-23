@@ -1,36 +1,41 @@
 import base64
-import re
+import socket
+import ssl
+
 import logging
 
 import gssapi
 from requests.auth import AuthBase
-from requests.compat import urlparse
 import www_authenticate
-
+from requests.packages.urllib3.connection import HTTPConnection
+try:
+    from requests.packages.urllib3.contrib.pyopenssl import WrappedSocket
+except ImportError:
+    # A dummy class, for which nothing will be an instance of it.
+    WrappedSocket = type('WrappedSocket', (object,), {})
 
 logger = logging.getLogger(__name__)
 
 
 class HTTPNegotiateAuth(AuthBase):
     def __init__(self, service='HTTP', service_name=None,
-                 negotiate_client_name=None, preempt=False):
+                 negotiate_client_name=None):
         self.service = service
         self.service_name = service_name
-        self.contexts = {}
-        self.preempt = preempt
         self.negotiate_client_name = negotiate_client_name
 
     def __call__(self, request):
-        host = urlparse(request.url).hostname
-        if self.preempt or host in self.contexts:
-            logger.debug("__call__(): pre-emptively sending authorization"
-                         "header")
-            self.contexts[host] = ctx = self.get_context(host)
-            token = ctx.step(None)
-            token_b64 = base64.b64encode(token).decode('utf-8')
-            request.headers['Authorization'] = 'Negotiate ' + token_b64
         request.register_hook('response', self.handle_401)
         return request
+
+    def get_hostname(self, response):
+        assert isinstance(response.raw._connection, HTTPConnection)
+        sock = response.raw._connection.sock
+        # If pyopenssl is being used, we get a wrapped socket instead.
+        if isinstance(sock, WrappedSocket):
+            sock = sock.socket
+        assert isinstance(sock, (ssl.SSLSocket, socket.socket))
+        return socket.gethostbyaddr(sock.getpeername()[0])[0]
 
     @property
     def username(self):
@@ -67,12 +72,9 @@ class HTTPNegotiateAuth(AuthBase):
             logger.debug("Giving up on negotiate auth")
             return response
 
-        host = urlparse(response.url).hostname
+        host = self.get_hostname(response)
         logger.debug("host={0}".format(host))
-        if host in self.contexts:
-            ctx = self.contexts[host]
-        else:
-            ctx = self.contexts[host] = self.get_context(host)
+        ctx = self.get_context(host)
 
         logger.debug("ctx={0}".format(ctx))
         in_token = base64.b64decode(challenges['negotiate'].encode('ascii')) \
