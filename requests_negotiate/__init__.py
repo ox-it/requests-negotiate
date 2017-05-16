@@ -30,6 +30,10 @@ class HTTPNegotiateAuth(AuthBase):
 
     def get_hostname(self, response):
         assert isinstance(response.raw._connection, HTTPConnection)
+        # Sometimes the connection is closed just before requests attempts to handle the 401, so let's open it again so
+        # we can work out who we're talking to.
+        if response.raw._connection.sock is None:
+            response.raw._connection.connect()
         sock = response.raw._connection.sock
         # If pyopenssl is being used, we get a wrapped socket instead.
         if isinstance(sock, WrappedSocket):
