@@ -44,7 +44,7 @@ class HTTPNegotiateAuth(AuthBase):
     @property
     def username(self):
         logging.debug("Obtaining username from GSSAPI")
-        credential = gssapi.Credential(usage=gssapi.C_INITIATE)
+        credential = gssapi.Credentials(usage='initiate')
         logging.debug("Username={0}".format(credential.name))
         return str(credential.name)
 
